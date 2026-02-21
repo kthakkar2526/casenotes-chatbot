@@ -1,0 +1,31 @@
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# Database - async SQLAlchemy driver for Postgres
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0          # async Postgres driver used by SQLAlchemy
+psycopg2-binary==2.9.10  # sync driver used only by seed/embed scripts
+
+# pgvector Python client - registers the VECTOR type with SQLAlchemy
+pgvector==0.3.6
+
+# Embeddings - runs locally, no API key needed
+sentence-transformers>=3.4.0  # 3.4+ fixes CodeCarbonCallback import error with transformers>=4.49
+torch>=2.5.1              # required by sentence-transformers
+
+# LLM
+google-generativeai==0.8.3
+
+# Config / env
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# HTTP
+httpx==0.27.2             # used by FastAPI TestClient; good to have
+
+# Text chunking — sentence tokenizer for overlap-aware chunking
+nltk==3.9.1
+
+# Utilities
+python-dateutil==2.9.0

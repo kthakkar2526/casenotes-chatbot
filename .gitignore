@@ -1,0 +1,41 @@
+# ── Secrets ────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example          # keep the example template
+
+# ── Python ─────────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── HuggingFace / sentence-transformers model cache ────────────────
+# The BGE model (~1.3 GB) downloads to ~/.cache/huggingface by default.
+# If you ever redirect it into the project folder, exclude it:
+models/
+*.bin
+*.safetensors
+
+# ── Node / frontend ─────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+# ── OS ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ──────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.sw?

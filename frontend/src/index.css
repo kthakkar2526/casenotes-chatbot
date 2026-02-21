@@ -1,0 +1,4 @@
+/* Tailwind CSS directives — these are processed by PostCSS at build time */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

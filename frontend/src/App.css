@@ -1,0 +1,10 @@
+/* App-level styles. Tailwind utility classes are used in components;
+   this file is kept for any global overrides that can't be expressed
+   as utilities. */
+
+/* Make the root fill the full viewport height */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
