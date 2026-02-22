@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str
 
     # ------------------------------------------------------------------ #
+    # HuggingFace
+    # ------------------------------------------------------------------ #
+    # Token for the HF Inference API (used to embed queries at runtime).
+    # Get one at https://huggingface.co/settings/tokens (Read permission).
+    HF_TOKEN: str
+
+    # ------------------------------------------------------------------ #
     # Embedding model
     # ------------------------------------------------------------------ #
     # HuggingFace model id — downloaded once and cached locally by

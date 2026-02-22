@@ -1,10 +1,11 @@
 """
-embedding.py — Wrapper around BAAI/bge-large-en-v1.5 via sentence-transformers.
+embedding.py — Embeddings via HuggingFace Inference API (BAAI/bge-large-en-v1.5).
 
-WHY BGE-LARGE-EN-V1.5?
-  BGE (BAAI General Embedding) large English v1.5 is a top-ranked embedding
-  model on the MTEB benchmark.  It produces 1024-dimensional vectors and runs
-  locally — no external API or cost per token.
+WHY HF INFERENCE API INSTEAD OF LOCAL?
+  Running bge-large-en-v1.5 locally requires ~1.5 GB RAM.  Hosted environments
+  (Render free tier, Railway hobby) cap at 512 MB, causing OOM crashes.
+  Calling HuggingFace's hosted Inference API offloads the model to HF's servers —
+  zero local RAM cost, same model, same 1024-dim vectors, same quality.
 
 KEY BGE QUIRK — RETRIEVAL PREFIX:
   BGE models are trained with two modes:
@@ -12,50 +13,93 @@ KEY BGE QUIRK — RETRIEVAL PREFIX:
     • Querying            → prepend the string
         "Represent this sentence for searching relevant passages: "
       to the query before embedding.
-  Skipping this prefix at query time degrades retrieval quality noticeably.
   This module handles the prefix automatically so callers don't need to worry.
 
-SINGLETON PATTERN:
-  Loading a large model (≈1.3 GB) takes several seconds.  We load it once
-  at module import time and reuse the same SentenceTransformer instance for
-  every request.  In a production multi-process setup you'd want to share the
-  model via a dedicated embedding service, but for this POC a singleton is fine.
+HF FREE TIER NOTES:
+  - Rate limited but fine for POC usage.
+  - The model may be "cold" after inactivity; the API returns HTTP 503 with
+    {"error": "Model is currently loading"} in that case.  We retry with
+    exponential back-off (up to 3 attempts, 20s wait) to handle cold starts.
+
+USED BY:
+  • embed_notes.py (indexing)  — calls embed_documents()
+  • vector_search.py (runtime) — calls embed_query()
 """
 
-from functools import lru_cache
+import time
 
-from sentence_transformers import SentenceTransformer
+import httpx
 
 from app.core.config import settings
 
 # ------------------------------------------------------------------ #
-# Retrieval prefix (BGE-specific)
+# BGE retrieval prefix
 # ------------------------------------------------------------------ #
-# Used only when embedding queries, NOT when embedding documents.
 BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
+# ------------------------------------------------------------------ #
+# HF Inference API endpoint
+# ------------------------------------------------------------------ #
+_HF_API_URL = (
+    f"https://api-inference.huggingface.co/models/{settings.EMBEDDING_MODEL}"
+)
+
 
 # ------------------------------------------------------------------ #
-# Model singleton
+# Internal helper
 # ------------------------------------------------------------------ #
-@lru_cache(maxsize=1)
-def _get_model() -> SentenceTransformer:
+def _call_hf_api(texts: list[str]) -> list[list[float]]:
     """
-    Load the BGE model exactly once and cache it.
+    POST texts to the HF Inference API and return a list of embeddings.
 
-    lru_cache(maxsize=1) ensures that even if _get_model() is called from
-    multiple coroutines at startup, only one model instance is ever created.
-    The model is downloaded on first call and cached locally by HuggingFace
-    (usually at ~/.cache/huggingface/hub/).
+    Retries up to 3 times if the model is cold (HTTP 503 + loading message).
+    Each retry waits 20 seconds to let HF warm the model up.
+
+    Args:
+        texts: One or more strings to embed.
+
+    Returns:
+        List of 1024-dim float vectors, one per input string.
+
+    Raises:
+        httpx.HTTPStatusError: On non-retryable HTTP errors.
+        RuntimeError: If the model is still loading after all retries.
     """
-    print(f"Loading embedding model: {settings.EMBEDDING_MODEL} …")
-    model = SentenceTransformer(settings.EMBEDDING_MODEL)
-    print(f"Embedding model loaded. Output dimension: {model.get_sentence_embedding_dimension()}")
-    return model
+    headers = {"Authorization": f"Bearer {settings.HF_TOKEN}"}
+
+    for attempt in range(3):
+        response = httpx.post(
+            _HF_API_URL,
+            headers=headers,
+            json={"inputs": texts},
+            timeout=60.0,   # generous timeout — cold HF models can be slow
+        )
+
+        # HF returns 503 while the model warms up; wait and retry
+        if response.status_code == 503:
+            error_body = response.json()
+            if "loading" in str(error_body).lower():
+                wait = error_body.get("estimated_time", 20)
+                print(f"HF model loading, waiting {wait}s (attempt {attempt + 1}/3)…")
+                time.sleep(wait)
+                continue
+
+        response.raise_for_status()
+        result = response.json()
+
+        # HF feature-extraction can return shape [batch, dims] or [batch, tokens, dims].
+        # For sentence-level embeddings we want [batch, dims].
+        # If we get a 3-D response, take the first token (CLS) vector.
+        if result and isinstance(result[0][0], list):
+            result = [item[0] for item in result]
+
+        return result
+
+    raise RuntimeError("HF model still loading after 3 retries — try again in a moment.")
 
 
 # ------------------------------------------------------------------ #
-# Public helpers
+# Public helpers (same interface as the old local-model version)
 # ------------------------------------------------------------------ #
 def embed_documents(texts: list[str]) -> list[list[float]]:
     """
@@ -64,23 +108,19 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
     Used by embed_notes.py when indexing case notes into the DB.
 
     Args:
-        texts: List of raw note texts to embed.
+        texts: List of raw note chunk texts to embed.
 
     Returns:
-        List of 1024-dimensional float vectors (one per input text).
+        List of 1024-dimensional float vectors, one per input.
     """
-    model = _get_model()
-    # normalize_embeddings=True makes cosine similarity equivalent to dot product,
-    # which matches how pgvector's <=> operator works.
-    vectors = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
-    return [v.tolist() for v in vectors]
+    return _call_hf_api(texts)
 
 
 def embed_query(query: str) -> list[float]:
     """
-    Embed a single user query string WITH the BGE retrieval prefix.
+    Embed a single user query WITH the BGE retrieval prefix.
 
-    Used at chat time to embed the user's question before running the
+    Used at chat time to embed the user's question before the
     pgvector similarity search.
 
     Args:
@@ -89,7 +129,4 @@ def embed_query(query: str) -> list[float]:
     Returns:
         A 1024-dimensional float vector.
     """
-    model = _get_model()
-    prefixed = BGE_QUERY_PREFIX + query
-    vector = model.encode(prefixed, normalize_embeddings=True, show_progress_bar=False)
-    return vector.tolist()
+    return _call_hf_api([BGE_QUERY_PREFIX + query])[0]

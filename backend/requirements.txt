@@ -10,9 +10,8 @@ psycopg2-binary==2.9.10  # sync driver used only by seed/embed scripts
 # pgvector Python client - registers the VECTOR type with SQLAlchemy
 pgvector==0.3.6
 
-# Embeddings - runs locally, no API key needed
-sentence-transformers>=3.4.0  # 3.4+ fixes CodeCarbonCallback import error with transformers>=4.49
-torch>=2.5.1              # required by sentence-transformers
+# Embeddings - via HuggingFace Inference API (no local model, no GPU/RAM needed)
+# sentence-transformers and torch removed — model runs on HF's servers
 
 # LLM
 google-generativeai==0.8.3
