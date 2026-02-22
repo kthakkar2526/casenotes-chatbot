@@ -20,7 +20,8 @@ build/
 # ── HuggingFace / sentence-transformers model cache ────────────────
 # The BGE model (~1.3 GB) downloads to ~/.cache/huggingface by default.
 # If you ever redirect it into the project folder, exclude it:
-models/
+# Note: use a specific path so app/models/ (Python package) is NOT excluded.
+hf_models/
 *.bin
 *.safetensors
 
