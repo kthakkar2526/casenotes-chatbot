@@ -41,7 +41,7 @@ BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 # HF Inference API endpoint
 # ------------------------------------------------------------------ #
 _HF_API_URL = (
-    f"https://api-inference.huggingface.co/models/{settings.EMBEDDING_MODEL}"
+    f"https://router.huggingface.co/hf-inference/models/{settings.EMBEDDING_MODEL}/pipeline/feature-extraction"
 )
 
 
