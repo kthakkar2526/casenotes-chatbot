@@ -49,7 +49,10 @@ class Settings(BaseSettings):
     # CORS
     # ------------------------------------------------------------------ #
     # Origins allowed to call the API.  The Vite dev server runs on 5173.
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"]
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "https://casenotes-chatbot.vercel.app",
+    ]
 
     # ------------------------------------------------------------------ #
     # pydantic-settings config: tell it where the .env file lives
